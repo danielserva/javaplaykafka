@@ -1,4 +1,4 @@
-package io.conduktor.demos.kafka;
+package com.daniel.demos.kafka;
 
 import java.time.Duration;
 import java.util.Arrays;

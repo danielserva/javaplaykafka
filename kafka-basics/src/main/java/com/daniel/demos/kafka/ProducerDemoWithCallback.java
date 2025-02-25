@@ -1,4 +1,4 @@
-package io.conduktor.demos.kafka;
+package com.daniel.demos.kafka;
 
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -10,12 +10,12 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Properties;
 
-public class ProducerDemoKeys {
+public class ProducerDemoWithCallback {
 
     private static final Logger log = LoggerFactory.getLogger(ProducerDemo.class.getSimpleName());
 
     public static void main(String[] args) {
-        log.info("I am a Kafka Producer!");
+        log.info("I am a Kafka Producer written in java!");
 
         // create Producer Properties
         Properties properties = new Properties();
@@ -26,19 +26,16 @@ public class ProducerDemoKeys {
         // set producer properties
         properties.setProperty("key.serializer", StringSerializer.class.getName());
         properties.setProperty("value.serializer", StringSerializer.class.getName());
+        properties.setProperty("batch.size", "400");
 
         // create the producer
         KafkaProducer<String,String> producer = new KafkaProducer<>(properties);
 
-        for (int j = 0; j < 2; j++) {
+        for (int j = 0; j < 10; j++) {
             
-            for (int i = 0; i < 10; i++) {
-                var topic = "demo_kafka"; 
-                var key = "id_" + i;
-                var value = "hello world from java with callback " + i;
-
+            for (int i = 0; i < 30; i++) {
                 // create a producer record
-                ProducerRecord<String,String> producerRecord = new ProducerRecord<>(topic, key, value);
+                ProducerRecord<String,String> producerRecord = new ProducerRecord<>("demo_kafka", "hello world from java with callback " + i);
         
                 //send data
                 producer.send(producerRecord, new Callback() {
@@ -48,9 +45,11 @@ public class ProducerDemoKeys {
                         // executes every time a record successfully sent or an exception is thrown
                         if(exception == null){
                             // the record was successfully sent
-                            log.info("Sent with key: {} | Partition: {} ", 
-                            key,
-                            metadata.partition());
+                            log.info("Received new metadata \n Topic: {} \n Partition: {} \n Offset: {} \n Timestamp: {}", 
+                            metadata.topic(), 
+                            metadata.partition(),
+                            metadata.offset(),
+                            metadata.timestamp());
                         } else {
                             log.error("Error while producing", exception);
                         }
@@ -59,6 +58,11 @@ public class ProducerDemoKeys {
                 });
             }
 
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
 
 
