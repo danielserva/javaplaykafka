@@ -17,6 +17,8 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.opensearch.action.bulk.BulkRequest;
+import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.RestClient;
@@ -33,7 +35,6 @@ public class OpenSearchConsumer {
     
     public static RestHighLevelClient createOpenSearchClient() {
         String connString = "http://localhost:9200";
-//        String connString = "https://c9p5mwld41:45zeygn9hy@kafka-course-2322630105.eu-west-1.bonsaisearch.net:443";
 
         // we build a URI from the connection string
                 RestHighLevelClient restHighLevelClient;
@@ -75,6 +76,7 @@ public class OpenSearchConsumer {
         properties.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         properties.setProperty(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         properties.setProperty(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
+        properties.setProperty(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
 
         // create consumer
         return new KafkaConsumer<>(properties);
@@ -120,6 +122,8 @@ public class OpenSearchConsumer {
                 ConsumerRecords<String, String> records = kafkaConsumer.poll(Duration.ofMillis(3000));
                 log.info("Record count: {}", records.count());
 
+                BulkRequest bulkRequest = new BulkRequest();
+
                 for(ConsumerRecord<String, String> kafkaRecord: records) {
                     try {
                         // extract id from JSON value
@@ -130,13 +134,28 @@ public class OpenSearchConsumer {
                         .source(kafkaRecord.value(), XContentType.JSON)
                         .id(recordId);
                         
-                        var response = openSearchClient.index(indexRequest, RequestOptions.DEFAULT);
+                        bulkRequest.add(indexRequest);
                         
-                        log.info("Inserted 1 document into OpenSearch with id: {}", response.getId());
                     } catch (Exception e) {
                         log.error("Exception: {}", e.getMessage());
                     }
                 }
+
+                if(bulkRequest.numberOfActions() > 0){
+                    BulkResponse bulkResponse = openSearchClient.bulk(bulkRequest, RequestOptions.DEFAULT);
+                    log.info("Inserted {} actions into OpenSearch", bulkResponse.getItems().length);
+
+                    try {
+                        Thread.sleep(1000);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+
+                    // commit offsets after the batch is consumed 
+                    kafkaConsumer.commitSync();
+                    log.info("Offsets have been commited");
+                }
+                
             }
 
         }
