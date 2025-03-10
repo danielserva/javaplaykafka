@@ -16,6 +16,7 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
@@ -102,6 +103,25 @@ public class OpenSearchConsumer {
         // create our kafka consumer
         var kafkaConsumer = createKafkaConsumer();
 
+        // get a reference to the main thread
+        final Thread mainThread = Thread.currentThread();
+
+        // adding the shutdown hook
+        Runtime.getRuntime().addShutdownHook(new Thread(){
+            @Override
+            public void run(){
+                log.info("Detected a shutdown, let's exit by calling consumer.wakeup()...");
+                kafkaConsumer.wakeup();
+
+                // join the main thread to allow the execution of the code in the main thread
+                try {
+                    mainThread.join();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
+
         try (openSearchClient; kafkaConsumer) {
             boolean indexExists = openSearchClient.indices().exists(new GetIndexRequest("wikimedia"),RequestOptions.DEFAULT);
 
@@ -158,14 +178,15 @@ public class OpenSearchConsumer {
                 
             }
 
+        } catch (WakeupException e) {
+            log.info("Consumer is starting to shut down");
+        } catch (Exception e){
+            log.error("unexpected exception in the consumer");
+        } finally{
+            // commit the offsets and close the consumer
+            kafkaConsumer.close();
+            log.info("The consumer is now gracefully shut down");
         }
 
-
-        //create our Kafka client
-
-
-        // main code logic
-
-        //close things
     }
 }

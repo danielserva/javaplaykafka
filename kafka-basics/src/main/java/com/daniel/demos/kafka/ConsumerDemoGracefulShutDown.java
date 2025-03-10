@@ -40,6 +40,7 @@ public class ConsumerDemoGracefulShutDown {
 
         // adding the shutdown hook
         Runtime.getRuntime().addShutdownHook(new Thread(){
+            @Override
             public void run(){
                 log.info("Detected a shutdown, let's exit by calling consumer.wakeup()...");
                 consumer.wakeup();
